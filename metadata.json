@@ -1,0 +1,6 @@
+{
+  "name": "Safe Stopping Distance Calculator",
+  "description": "Professional web application to calculate and simulate vehicle safe stopping distances based on various parameters like speed, reaction time, and road conditions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
