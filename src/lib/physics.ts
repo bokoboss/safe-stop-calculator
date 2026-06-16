@@ -12,6 +12,8 @@ export interface StoppingResults {
   totalDistance: number;
   timeToBrake: number;
   timeTotal: number;
+  canStop: boolean; // indicates if the vehicle can actually stop
+  warning?: string; // warning message if stopping is problematic
 }
 
 const g = 9.80665; // m/s^2
@@ -22,14 +24,27 @@ export function calculateStoppingDistance(params: StoppingParams): StoppingResul
   const speedMs = speedKmh / 3.6;
   const gradientDecimal = gradient / 100;
   
-  // Effective friction cannot be less than or equal to 0 realistically for braking (would never stop)
-  const effectiveFriction = Math.max(0.01, friction + gradientDecimal);
+  // Effective friction: friction + gradient (uphill helps braking, downhill hurts)
+  const effectiveFriction = friction + gradientDecimal;
+  
+  // Check if vehicle can stop (effective friction must be positive)
+  const canStop = effectiveFriction > 0.01;
+  let warning: string | undefined;
+  
+  if (!canStop) {
+    warning = '⚠️ รถไม่สามารถหยุดได้! ความลาดชันลงเขาสูงเกินไป combined with แรงเสียดทานต่ำ';
+  } else if (effectiveFriction < 0.1) {
+    warning = '⚠️ ระวัง! ระยะเบรกจะยาวมากเนื่องจากแรงเสียดทานต่ำและความลาดชัน';
+  }
+  
+  // Use clamped effective friction for calculations to avoid division by zero
+  const safeEffectiveFriction = Math.max(0.01, effectiveFriction);
 
   const reactionDistance = speedMs * reactionTime;
-  const brakingDistance = Math.pow(speedMs, 2) / (2 * g * effectiveFriction);
+  const brakingDistance = Math.pow(speedMs, 2) / (2 * g * safeEffectiveFriction);
   const totalDistance = reactionDistance + brakingDistance;
   
-  const timeToBrake = speedMs / (g * effectiveFriction);
+  const timeToBrake = speedMs / (g * safeEffectiveFriction);
   const timeTotal = reactionTime + timeToBrake;
 
   return {
@@ -39,6 +54,8 @@ export function calculateStoppingDistance(params: StoppingParams): StoppingResul
     totalDistance,
     timeToBrake,
     timeTotal,
+    canStop,
+    warning,
   };
 }
 
@@ -81,5 +98,17 @@ export const PRESETS = [
     name: 'ผู้ขับตื่นตัวสูง',
     desc: 'ตอบสนองไวบนถนนแห้ง (t=0.7s, μ=0.8)',
     params: { reactionTime: 0.7, friction: 0.8, gradient: 0 }
+  },
+  {
+    id: 'icy',
+    name: 'ถนนลื่นจัด (น้ำแข็ง)',
+    desc: 'สภาวะอันตราย (t=1.5s, μ=0.15)',
+    params: { reactionTime: 1.5, friction: 0.15, gradient: 0 }
+  },
+  {
+    id: 'hill',
+    name: 'ลงเขาชัน + ถนนเปียก',
+    desc: 'สภาวะเสี่ยงสูง (t=1.5s, μ=0.4, -10%)',
+    params: { reactionTime: 1.5, friction: 0.4, gradient: -10 }
   }
 ];
